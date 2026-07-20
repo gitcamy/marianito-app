@@ -12,6 +12,8 @@ FigJam board: https://www.figma.com/board/5h7KjnjmbXJ5gRqgBnSYnO ("MVP User Jour
 - `npx expo start --web` — full app runs offline in the browser (all data mocked).
 - `npx expo start --ios` — needs Xcode/iOS Simulator or Expo Go on a device.
 - `npx tsc --noEmit` — type-check.
+- `npm test` — jest unit tests (domain logic, mock services, stores; `__tests__/` folders).
+  AsyncStorage and expo-crypto are mocked in `jest-setup.js`.
 
 ## Architecture
 

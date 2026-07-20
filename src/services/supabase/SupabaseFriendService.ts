@@ -1,5 +1,6 @@
 import { FriendService } from '@/services/types';
 import { Friend } from '@/types/models';
+import { newId } from '@/utils/id';
 import { supabase } from './client';
 import { ProfileRow, toFriend } from './mappers';
 
@@ -125,14 +126,24 @@ export class SupabaseFriendService implements FriendService {
 
   async addGuest(name: string): Promise<Friend> {
     const userId = await requireUserId();
-    const { data, error } = await supabase
+    // Insert without returning (avoids RLS returning-visibility pitfalls);
+    // we know every field, so build the Friend locally.
+    const guestId = newId();
+    const { error } = await supabase
       .from('profiles')
-      .insert({ display_name: name.trim(), is_guest: true, created_by: userId })
-      .select()
-      .single();
-    if (error || !data) throw new Error(error?.message ?? 'Could not add guest');
-    await this.ensureFriends([data.id]);
-    return toFriend(data as ProfileRow, { isFriend: true, isBlocked: false });
+      .insert({ id: guestId, display_name: name.trim(), is_guest: true, created_by: userId });
+    if (error) throw new Error(error.message);
+    await this.ensureFriends([guestId]);
+    return {
+      id: guestId,
+      displayName: name.trim(),
+      username: '',
+      avatarUri: null,
+      isNearby: false,
+      isFriend: true,
+      isBlocked: false,
+      isGuest: true,
+    };
   }
 
   async profiles(ids: string[]): Promise<Friend[]> {

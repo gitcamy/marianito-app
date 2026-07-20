@@ -9,9 +9,14 @@ create table if not exists public.profiles (
   display_name text not null default '',
   username text unique,
   avatar_url text,
-  nearby boolean not null default false, -- simulated presence flag for the MVP
+  nearby boolean not null default false, -- static demo-nearby flag
+  is_guest boolean not null default false,
+  created_by uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
+-- idempotent upgrades for databases created before these columns existed
+alter table public.profiles add column if not exists is_guest boolean not null default false;
+alter table public.profiles add column if not exists created_by uuid references public.profiles(id);
 
 create table if not exists public.friendships (
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -58,8 +63,10 @@ create table if not exists public.settings (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   discoverable_presence boolean not null default true,
   location_consent boolean not null default true,
-  notifications_enabled boolean not null default true
+  notifications_enabled boolean not null default true,
+  discoverable_to_all boolean not null default true
 );
+alter table public.settings add column if not exists discoverable_to_all boolean not null default true;
 
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),
@@ -90,6 +97,38 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- ─── Mutual friendship via shared tables ───────────────────────────────────
+-- Every participant of a table becomes friends with every other participant,
+-- both directions. SECURITY DEFINER because users only write their own edges.
+
+create or replace function public.befriend_table_mates()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.friendships (user_id, friend_id)
+  select new.user_id, ep.user_id
+  from public.entry_participants ep
+  where ep.entry_id = new.entry_id and ep.user_id <> new.user_id
+  on conflict do nothing;
+
+  insert into public.friendships (user_id, friend_id)
+  select ep.user_id, new.user_id
+  from public.entry_participants ep
+  where ep.entry_id = new.entry_id and ep.user_id <> new.user_id
+  on conflict do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_participant_added on public.entry_participants;
+create trigger on_participant_added
+  after insert on public.entry_participants
+  for each row execute function public.befriend_table_mates();
+
 -- ─── Row-level security ────────────────────────────────────────────────────
 
 alter table public.profiles enable row level security;
@@ -101,16 +140,51 @@ alter table public.entry_appends enable row level security;
 alter table public.settings enable row level security;
 alter table public.reports enable row level security;
 
--- profiles: everyone signed-in can browse (discoverable people), you edit yours
+-- profiles: visible when the person is discoverable-to-all, is you, is your
+-- guest, is your friend, or shared a table with you (see discoverable.sql notes)
+create or replace function public.is_discoverable_to_all(uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select discoverable_to_all from public.settings where user_id = uid),
+    true
+  );
+$$;
+
 drop policy if exists "profiles_select" on public.profiles;
 create policy "profiles_select" on public.profiles
-  for select to authenticated using (true);
+  for select to authenticated using (
+    id = auth.uid()
+    or (is_guest = true and created_by = auth.uid())
+    or public.is_discoverable_to_all(id)
+    or exists (
+      select 1 from public.friendships f
+      where f.user_id = auth.uid() and f.friend_id = profiles.id
+    )
+    or exists (
+      select 1
+      from public.entry_participants mine
+      join public.entry_participants theirs on theirs.entry_id = mine.entry_id
+      where mine.user_id = auth.uid() and theirs.user_id = profiles.id
+    )
+  );
+-- update/insert cover both your own profile and guests you created
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
-  for update to authenticated using (id = auth.uid());
+  for update to authenticated using (
+    id = auth.uid()
+    or (is_guest = true and created_by = auth.uid())
+  );
 drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own" on public.profiles
-  for insert to authenticated with check (id = auth.uid());
+  for insert to authenticated with check (
+    id = auth.uid()
+    or (is_guest = true and created_by = auth.uid())
+  );
 
 -- friendships / blocks: you manage your own edges
 drop policy if exists "friendships_all_own" on public.friendships;

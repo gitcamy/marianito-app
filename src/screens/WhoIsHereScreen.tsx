@@ -11,6 +11,7 @@ import { useTableStore } from '@/stores/useTableStore';
 import { Friend } from '@/types/models';
 import { theme } from '@/theme';
 import { confirmAction } from '@/utils/confirm';
+import { friendlyMessage } from '@/utils/errors';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
@@ -36,6 +37,7 @@ export function WhoIsHereScreen() {
   const [nearby, setNearby] = useState<Friend[]>([]);
   const [results, setResults] = useState<Friend[]>([]);
   const [addingGuest, setAddingGuest] = useState(false);
+  const [guestError, setGuestError] = useState<string | null>(null);
 
   // Direct load (refresh/deep link) lands here without a draft — open one now
   // so selection works. openedAt = now keeps Marianito Hour semantics right.
@@ -79,11 +81,14 @@ export function WhoIsHereScreen() {
     const nearbySorted = discoverable
       ? [...nearby].sort((a, b) => Number(b.isFriend) - Number(a.isFriend))
       : [];
-    const nearbyIds = new Set(nearbySorted.map((p) => p.id));
-    const friendsBelow = friends.filter((f) => !nearbyIds.has(f.id));
+    // Friends ALWAYS all show below, alphabetically — nearby friends
+    // intentionally appear twice.
+    const friendsAlpha = [...friends].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName),
+    );
     return [
       ...(nearbySorted.length ? [{ label: 'Nearby', data: nearbySorted }] : []),
-      ...(friendsBelow.length ? [{ label: 'Friends', data: friendsBelow }] : []),
+      ...(friendsAlpha.length ? [{ label: 'Friends', data: friendsAlpha }] : []),
     ];
   }, [trimmedQuery, results, nearby, friends, discoverable]);
 
@@ -110,12 +115,15 @@ export function WhoIsHereScreen() {
 
   const createGuest = async () => {
     if (addingGuest) return;
+    setGuestError(null);
     setAddingGuest(true);
     try {
       const guest = await addGuest(trimmedQuery);
       toggle(guest.id); // seat them at this table right away
       setQuery('');
       await loadDefault();
+    } catch (e) {
+      setGuestError(friendlyMessage(e, "Couldn't add them — try again."));
     } finally {
       setAddingGuest(false);
     }
@@ -157,22 +165,25 @@ export function WhoIsHereScreen() {
           )
         }
         ListFooterComponent={
-          showAddGuest ? (
+          <>
+          {guestError ? <Text style={styles.guestErrorText}>{guestError}</Text> : null}
+          {showAddGuest ? (
             <Pressable onPress={createGuest} style={styles.addGuestRow} disabled={addingGuest}>
               <View style={styles.addGuestIcon}>
                 <Text style={styles.addGuestPlus}>+</Text>
               </View>
               <Text style={styles.addGuestLabel}>
-                Add “{trimmedQuery}” as a guest
+                Add “{trimmedQuery}” as a friend
               </Text>
             </Pressable>
           ) : (
             <Text style={styles.guestHint}>
               {trimmedQuery
                 ? 'No one by that name yet.'
-                : 'Someone else? Search their name — or type it to add them as a guest.'}
+                : 'Someone else? Search their name — or type it to add them as a friend.'}
             </Text>
-          )
+          )}
+          </>
         }
       />
 
@@ -233,6 +244,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: theme.space.xl,
     lineHeight: 17,
+  },
+  guestErrorText: {
+    fontSize: theme.type.size.sm,
+    color: theme.colors.danger,
+    marginTop: theme.space.lg,
   },
   footer: {
     padding: theme.space.xl,
