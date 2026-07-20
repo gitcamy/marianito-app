@@ -7,10 +7,12 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { theme } from '@/theme';
 import { confirmAction } from '@/utils/confirm';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /** 09 — Settings & Privacy (G1–G4). */
 export function SettingsScreen() {
   const router = useRouter();
+  const goBack = useSafeBack('/');
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
   const signOut = useAuthStore((s) => s.signOut);
@@ -21,11 +23,16 @@ export function SettingsScreen() {
   return (
     <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Settings</Text>
 
+        <SettingToggleRow
+          label="Discoverable to everyone"
+          value={settings.discoverableToAll}
+          onValueChange={(v) => update({ discoverableToAll: v })}
+        />
         <SettingToggleRow
           label="Discoverable presence"
           value={settings.discoverablePresence}

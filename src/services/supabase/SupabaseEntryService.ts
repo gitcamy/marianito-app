@@ -1,5 +1,6 @@
 import { EntryService } from '@/services/types';
 import { DistributiveOmit, Entry, EntryAppend } from '@/types/models';
+import { newId } from '@/utils/id';
 import { isMarianitoHour } from '@/utils/marianitoHour';
 import { supabase } from './client';
 import { EntryRow, toEntry } from './mappers';
@@ -25,27 +26,28 @@ export class SupabaseEntryService implements EntryService {
     const userId = await requireUserId();
     const photoUrl = await uploadPhoto(input.photoUri, userId);
 
-    const { data: entryRow, error } = await supabase
-      .from('entries')
-      .insert({
-        photo_url: photoUrl,
-        caption: input.caption,
-        location: input.location,
-        initiator_id: userId,
-        started_at: input.startedAt,
-        is_marianito_hour: isMarianitoHour(input.startedAt),
-      })
-      .select()
-      .single();
-    if (error || !entryRow) throw new Error(error?.message ?? 'Could not create entry');
+    // RLS gotcha: an entry is only SELECT-visible once its participants exist,
+    // so we can't insert-and-return in one call. Generate the id client-side,
+    // insert blind, write participants, THEN fetch.
+    const entryId = newId();
+    const { error } = await supabase.from('entries').insert({
+      id: entryId,
+      photo_url: photoUrl,
+      caption: input.caption,
+      location: input.location,
+      initiator_id: userId,
+      started_at: input.startedAt,
+      is_marianito_hour: isMarianitoHour(input.startedAt),
+    });
+    if (error) throw new Error(error.message);
 
     const participantRows = [userId, ...input.participantIds.filter((id) => id !== userId)].map(
-      (id) => ({ entry_id: entryRow.id, user_id: id }),
+      (id) => ({ entry_id: entryId, user_id: id }),
     );
     const { error: pErr } = await supabase.from('entry_participants').insert(participantRows);
     if (pErr) throw new Error(pErr.message);
 
-    const full = await this.get(entryRow.id);
+    const full = await this.get(entryId);
     if (!full) throw new Error('Entry vanished after create');
     return full;
   }

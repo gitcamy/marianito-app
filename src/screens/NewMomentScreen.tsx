@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -10,7 +10,9 @@ import { useHomeStore } from '@/stores/useHomeStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useTableStore } from '@/stores/useTableStore';
 import { theme } from '@/theme';
+import { friendlyMessage } from '@/utils/errors';
 import { pickPhoto } from '@/utils/pickPhoto';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /** 06 — Photo + Caption (C1, C5): one photo required, caption optional, location never blocks. */
 export function NewMomentScreen() {
@@ -21,11 +23,20 @@ export function NewMomentScreen() {
   const setHomeView = useHomeStore((s) => s.setView);
   const locationConsent = useSettingsStore((s) => s.settings.locationConsent);
 
+  // No draft (refresh/deep link) → back to the start of the flow.
+  // postedRef stops this firing when the draft is cleared by a successful post.
+  const postedRef = useRef(false);
+  useEffect(() => {
+    if (!draft && !postedRef.current) router.replace('/table/who');
+  }, [draft, router]);
+
+  const goBack = useSafeBack('/table/who');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [location, setLocation] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const choosePhoto = async () => {
     const uri = await pickPhoto();
@@ -34,6 +45,7 @@ export function NewMomentScreen() {
 
   const post = async () => {
     if (!photoUri || !draft) return;
+    setError(null);
     setBusy(true);
     try {
       const entry = await createEntry({
@@ -43,10 +55,15 @@ export function NewMomentScreen() {
         participantIds: draft.participantIds,
         startedAt: draft.openedAt,
       });
+      postedRef.current = true;
       resetDraft();
       setHomeView('journal'); // land back on the journal (D1)
-      router.dismissAll();
+      // Pop the whole table modal stack back to home, THEN push the entry —
+      // leaves history as [home → entry] so back returns to the journal.
+      router.dismissTo('/');
       router.push({ pathname: '/entry/[id]', params: { id: entry.id } });
+    } catch (e) {
+      setError(friendlyMessage(e, "Couldn't post your moment — please try again."));
     } finally {
       setBusy(false);
     }
@@ -56,7 +73,7 @@ export function NewMomentScreen() {
     <ScreenContainer keyboard edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={goBack} hitSlop={8}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
           <Text style={styles.title}>New moment</Text>
@@ -101,6 +118,7 @@ export function NewMomentScreen() {
           )
         ) : null}
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton
           title="Post moment"
           onPress={post}
@@ -164,5 +182,11 @@ const styles = StyleSheet.create({
   },
   locationLabel: { fontSize: theme.type.size.sm, color: theme.colors.textSecondary },
   locationField: { marginTop: theme.space.lg },
+  error: {
+    color: theme.colors.danger,
+    fontSize: theme.type.size.sm,
+    marginTop: theme.space.lg,
+    textAlign: 'center',
+  },
   cta: { marginTop: theme.space.xxl },
 });

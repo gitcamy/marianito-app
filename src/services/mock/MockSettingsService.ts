@@ -8,11 +8,13 @@ const DEFAULTS: Settings = {
   discoverablePresence: true,
   locationConsent: true,
   notificationsEnabled: true,
+  discoverableToAll: true,
 };
 
 export class MockSettingsService implements SettingsService {
   async get(): Promise<Settings> {
-    return (await load<Settings>(KEY)) ?? DEFAULTS;
+    const stored = await load<Partial<Settings>>(KEY);
+    return { ...DEFAULTS, ...stored }; // merge so newly added settings get defaults
   }
 
   async update(patch: Partial<Settings>): Promise<Settings> {

@@ -8,6 +8,8 @@ interface FriendState {
   refresh: () => Promise<void>;
   search: (query: string) => Promise<Friend[]>;
   profiles: (ids: string[]) => Promise<Friend[]>;
+  addGuest: (name: string) => Promise<Friend>;
+  nearbyPeople: () => Promise<Friend[]>;
   block: (id: string) => Promise<void>;
   unblock: (id: string) => Promise<void>;
   report: (subjectId: string | null, reason: string) => Promise<void>;
@@ -28,6 +30,14 @@ export const useFriendStore = create<FriendState>((set) => ({
   search: (query) => friendService.search(query),
 
   profiles: (ids) => friendService.profiles(ids),
+
+  addGuest: async (name) => {
+    const guest = await friendService.addGuest(name);
+    await useFriendStore.getState().refresh();
+    return guest;
+  },
+
+  nearbyPeople: () => friendService.nearbyPeople(),
 
   block: async (id) => {
     await friendService.block(id);

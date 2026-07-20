@@ -6,6 +6,7 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { theme } from '@/theme';
+import { friendlyMessage } from '@/utils/errors';
 import { pickPhoto } from '@/utils/pickPhoto';
 
 /** 02 — Set Up Profile (A3): display name, @username, photo. */
@@ -33,6 +34,8 @@ export function ProfileSetupScreen() {
     setBusy(true);
     try {
       await completeProfile({ displayName: name, username: handle, avatarUri });
+    } catch (e) {
+      setError(friendlyMessage(e, "Couldn't save your profile — try again."));
     } finally {
       setBusy(false);
     }

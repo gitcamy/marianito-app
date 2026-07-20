@@ -25,6 +25,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Marianito uses your location only to show friends who are nearby right now. It is never shared as coordinates."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#EDEAE0",

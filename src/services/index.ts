@@ -15,7 +15,9 @@ import { SupabaseEntryService } from './supabase/SupabaseEntryService';
 import { SupabaseFriendService } from './supabase/SupabaseFriendService';
 import { SupabaseSettingsService } from './supabase/SupabaseSettingsService';
 
-export const usingSupabase = supabaseConfigured;
+/** Set EXPO_PUBLIC_USE_MOCKS=1 to force the offline mock backend (demo mode). */
+export const usingSupabase =
+  supabaseConfigured && process.env.EXPO_PUBLIC_USE_MOCKS !== '1';
 
 export const auth: AuthService = usingSupabase ? new SupabaseAuthService() : new MockAuthService();
 export const friends: FriendService = usingSupabase

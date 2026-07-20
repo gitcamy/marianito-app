@@ -39,6 +39,32 @@ export class MockFriendService implements FriendService {
     return all.filter((f) => ids.includes(f.id));
   }
 
+  // Presence is simulated in mock mode: seed friends carry a static isNearby flag.
+  async updatePresence(_lat: number, _lng: number): Promise<void> {}
+
+  async clearPresence(): Promise<void> {}
+
+  async nearbyPeople(): Promise<Friend[]> {
+    const all = await this.all();
+    return all.filter((f) => f.isNearby && !f.isBlocked);
+  }
+
+  async addGuest(name: string): Promise<Friend> {
+    const guest: Friend = {
+      id: newId(),
+      displayName: name.trim(),
+      username: '',
+      avatarUri: null,
+      isNearby: false,
+      isFriend: true,
+      isBlocked: false,
+      isGuest: true,
+    };
+    const all = await this.all();
+    await save(KEY, [...all, guest]);
+    return guest;
+  }
+
   async ensureFriends(ids: string[]): Promise<void> {
     const all = await this.all();
     const next = all.map((f) => (ids.includes(f.id) ? { ...f, isFriend: true } : f));

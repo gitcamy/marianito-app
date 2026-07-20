@@ -8,7 +8,8 @@ interface AuthState {
   user: User | null;
   status: AuthStatus;
   restore: () => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  requestCode: (email: string) => Promise<void>;
+  verifyCode: (email: string, code: string) => Promise<void>;
   completeProfile: (patch: { displayName: string; username: string; avatarUri: string | null }) => Promise<void>;
   updateProfile: (patch: Partial<Pick<User, 'displayName' | 'username' | 'avatarUri'>>) => Promise<void>;
   signOut: () => Promise<void>;
@@ -28,8 +29,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user, status: statusFor(user) });
   },
 
-  signUp: async (email, password) => {
-    const user = await auth.signUp(email, password);
+  requestCode: async (email) => {
+    await auth.requestEmailCode(email);
+  },
+
+  verifyCode: async (email, code) => {
+    const user = await auth.verifyEmailCode(email, code);
     set({ user, status: statusFor(user) });
   },
 

@@ -11,21 +11,38 @@ async function fetchProfile(userId: string): Promise<User> {
 }
 
 export class SupabaseAuthService implements AuthService {
-  /** One form serves both: try sign-up, fall back to sign-in for existing accounts. */
-  async signUp(email: string, password: string): Promise<User> {
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+  /** Magic-link (email OTP) auth: one flow for both sign-up and sign-in. */
+  async requestEmailCode(email: string): Promise<void> {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: true },
+    });
     if (error) {
-      const alreadyExists = /already registered|already exists/i.test(error.message);
-      if (!alreadyExists) throw new Error(error.message);
-      const signIn = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (signIn.error) throw new Error(signIn.error.message);
-      return fetchProfile(signIn.data.user.id);
+      // Supabase enforces a cooldown between OTP emails per address.
+      const wait = /after (\d+) seconds/.exec(error.message);
+      if (wait) {
+        throw new Error(`Your last code is still valid — you can request a new one in ${wait[1]}s.`);
+      }
+      if (/rate limit/i.test(error.message)) {
+        throw new Error('Too many codes requested — wait a minute and try again.');
+      }
+      throw new Error(error.message);
     }
-    if (!data.user || !data.session) {
-      throw new Error(
-        'Sign-up needs email confirmation. Disable "Confirm email" in Supabase Auth settings for the MVP.',
-      );
+  }
+
+  async verifyEmailCode(email: string, code: string): Promise<User> {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: code.trim(),
+      type: 'email',
+    });
+    if (error) {
+      if (/expired|invalid/i.test(error.message)) {
+        throw new Error('That code is wrong or expired — request a new one.');
+      }
+      throw new Error(error.message);
     }
+    if (!data.user) throw new Error('No user in session');
     return fetchProfile(data.user.id);
   }
 

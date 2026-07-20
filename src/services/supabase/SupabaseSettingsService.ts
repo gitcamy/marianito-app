@@ -6,6 +6,7 @@ const DEFAULTS: Settings = {
   discoverablePresence: true,
   locationConsent: true,
   notificationsEnabled: true,
+  discoverableToAll: true,
 };
 
 async function requireUserId(): Promise<string> {
@@ -25,6 +26,7 @@ export class SupabaseSettingsService implements SettingsService {
       discoverablePresence: data.discoverable_presence,
       locationConsent: data.location_consent,
       notificationsEnabled: data.notifications_enabled,
+      discoverableToAll: data.discoverable_to_all ?? true,
     };
   }
 
@@ -37,6 +39,7 @@ export class SupabaseSettingsService implements SettingsService {
       discoverable_presence: next.discoverablePresence,
       location_consent: next.locationConsent,
       notifications_enabled: next.notificationsEnabled,
+      discoverable_to_all: next.discoverableToAll,
     });
     if (error) throw new Error(error.message);
     return next;

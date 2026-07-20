@@ -6,6 +6,7 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import { useFriendStore } from '@/stores/useFriendStore';
 import { Friend } from '@/types/models';
 import { theme } from '@/theme';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /** H1 — Blocked accounts: list, block more (via search screens), unblock here. */
 export function BlockedAccountsScreen() {
@@ -15,6 +16,7 @@ export function BlockedAccountsScreen() {
   const unblock = useFriendStore((s) => s.unblock);
   const search = useFriendStore((s) => s.search);
   const block = useFriendStore((s) => s.block);
+  const goBack = useSafeBack('/settings');
   const [others, setOthers] = useState<Friend[]>([]);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function BlockedAccountsScreen() {
   return (
     <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Blocked accounts</Text>

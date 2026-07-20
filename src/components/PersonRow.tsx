@@ -22,7 +22,7 @@ export function PersonRow({ person, selected, onPress, onLongPress, accessory }:
       <Avatar name={person.displayName} uri={person.avatarUri} showNearbyDot={person.isNearby} />
       <View style={styles.text}>
         <Text style={styles.name}>{person.displayName}</Text>
-        <Text style={styles.handle}>@{person.username}</Text>
+        <Text style={styles.handle}>{person.isGuest ? 'guest' : `@${person.username}`}</Text>
       </View>
       {person.isNearby ? (
         <View style={styles.nearbyPill}>

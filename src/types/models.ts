@@ -17,6 +17,8 @@ export interface Friend {
   /** false = discoverable person not yet in the friend list */
   isFriend: boolean;
   isBlocked: boolean;
+  /** Manually added person with no account; owned by the user who created them. */
+  isGuest?: boolean;
 }
 
 /** In-memory draft while the table modal flow is open. */
@@ -46,7 +48,9 @@ export interface Entry {
 }
 
 export interface Settings {
-  discoverablePresence: boolean; // G1
+  discoverablePresence: boolean; // G1 — appear in "nearby" surfaces
   locationConsent: boolean; // G2
   notificationsEnabled: boolean; // G3 (UI only this iteration)
+  /** Appear in other users' people lists (RLS-enforced). Off → friends/table-mates only. */
+  discoverableToAll: boolean;
 }

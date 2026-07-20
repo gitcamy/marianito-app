@@ -6,10 +6,12 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
 import { useFriendStore } from '@/stores/useFriendStore';
 import { theme } from '@/theme';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /** H2 — Report a problem (stored locally by the mock service this iteration). */
 export function ReportScreen() {
   const router = useRouter();
+  const goBack = useSafeBack('/settings');
   const report = useFriendStore((s) => s.report);
   const [reason, setReason] = useState('');
   const [sent, setSent] = useState(false);
@@ -28,7 +30,7 @@ export function ReportScreen() {
   return (
     <ScreenContainer keyboard edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Report a problem</Text>
@@ -39,7 +41,7 @@ export function ReportScreen() {
             <Text style={styles.doneText}>
               Your report has been received. We take safety at the table seriously.
             </Text>
-            <PrimaryButton title="Done" onPress={() => router.back()} />
+            <PrimaryButton title="Done" onPress={goBack} />
           </View>
         ) : (
           <>

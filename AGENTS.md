@@ -18,10 +18,32 @@ FigJam board: https://www.figma.com/board/5h7KjnjmbXJ5gRqgBnSYnO ("MVP User Jour
 Expo SDK 57 + expo-router (routes in `src/app/`, thin files only) + zustand + TypeScript.
 
 - **Route files contain zero logic** — each renders a component from `src/screens/`.
-- **Mock-first, Supabase-ready**: UI → stores (`src/stores/`) → service interfaces
-  (`src/services/types.ts`). `src/services/index.ts` is the swap point — the only file that
-  changes when Supabase replaces the mocks in `src/services/mock/` (AsyncStorage-backed,
-  seeded from `src/mocks/seed.ts`).
+- **Dual backend**: UI → stores (`src/stores/`) → service interfaces (`src/services/types.ts`).
+  `src/services/index.ts` picks the implementation at startup: with
+  `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY` set in `.env` it uses the Supabase services
+  (`src/services/supabase/`); without them it falls back to the AsyncStorage mocks
+  (`src/services/mock/`, seeded from `src/mocks/seed.ts`). Restart `expo start` after
+  changing `.env` — env vars are inlined at bundle time.
+- **Auth is passwordless**: email OTP ("magic code") via `signInWithOtp`/`verifyOtp` — one
+  flow for sign-up and sign-in. The Supabase "Magic Link" email template must contain
+  `{{ .Token }}` so the email carries the 6-digit code. Backend schema + RLS live in
+  `supabase/schema.sql`; incremental patches (e.g. `supabase/guests.sql`) are separate files —
+  run each once in the SQL editor.
+- **Guest friends**: profiles with `is_guest = true` and `created_by = <owner>` — no auth
+  account, taggable at tables, visible in search only to their creator. Created from the
+  Who's Here screen ("Add ‘name’ as a guest").
+- **Discoverability** (`supabase/discoverable.sql`): the "Discoverable to everyone" setting
+  (`settings.discoverable_to_all`, default true) is enforced in the `profiles` SELECT RLS
+  policy via the security-definer `is_discoverable_to_all()` — off means only the user
+  themself, their friends, table-mates, and (for guests) their creator can see the profile.
+- **Geo-presence** (`supabase/presence.sql`): foreground-only location pings
+  (`usePresencePing`, gated on BOTH privacy toggles) into a `presence` table readable only
+  by its owner. Nearby-ness comes exclusively from the `nearby_friend_ids()` RPC — friends
+  within ~500 m with fresh (<45 min) pings and both toggles on; it returns ids, NEVER
+  coordinates. Client merges those ids into `Friend.isNearby` (static `profiles.nearby`
+  stays as a demo override). Revoking either toggle deletes the presence row.
+- `EXPO_PUBLIC_USE_MOCKS=1 npx expo start` forces the offline mock backend even when `.env`
+  has Supabase credentials (demo mode / UI testing).
 - The mock current user always has id `'me'` (`ME_ID`) so seed data can reference them.
 - Seed entry photos use `seed:<tone>` URIs rendered as offline tile-flower placeholders by
   `EntryPhoto`; real picks use device URIs.

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { settings as settingsService } from '@/services';
+import { friends as friendService, settings as settingsService } from '@/services';
 import { Settings } from '@/types/models';
 
 interface SettingsState {
@@ -9,13 +9,23 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
-  settings: { discoverablePresence: true, locationConsent: true, notificationsEnabled: true },
+  settings: {
+    discoverablePresence: true,
+    locationConsent: true,
+    notificationsEnabled: true,
+    discoverableToAll: true,
+  },
 
   refresh: async () => {
     set({ settings: await settingsService.get() });
   },
 
   update: async (patch) => {
-    set({ settings: await settingsService.update(patch) });
+    const next = await settingsService.update(patch);
+    set({ settings: next });
+    // Revoking either privacy toggle wipes the stored location immediately.
+    if (patch.discoverablePresence === false || patch.locationConsent === false) {
+      friendService.clearPresence().catch(() => {});
+    }
   },
 }));

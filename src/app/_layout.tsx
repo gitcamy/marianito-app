@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { usePresencePing } from '@/hooks/usePresencePing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { theme } from '@/theme';
@@ -19,6 +20,8 @@ export default function RootLayout() {
     restore(); // A2/A4: session persists across launches
     refreshSettings();
   }, [restore, refreshSettings]);
+
+  usePresencePing(); // geo-presence: no-op unless signed in + both toggles on
 
   useEffect(() => {
     if (fontsLoaded && status !== 'loading') SplashScreen.hideAsync();

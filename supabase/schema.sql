@@ -120,12 +120,15 @@ drop policy if exists "blocks_all_own" on public.blocks;
 create policy "blocks_all_own" on public.blocks
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- entries: visible to participants; only the initiator inserts
+-- entries: visible to the initiator and participants; only the initiator inserts.
+-- (initiator_id clause is required: at insert time the participants rows don't
+-- exist yet, and the entry_participants insert policy looks the entry up.)
 drop policy if exists "entries_select_participant" on public.entries;
 create policy "entries_select_participant" on public.entries
   for select to authenticated using (
-    exists (select 1 from public.entry_participants ep
-            where ep.entry_id = id and ep.user_id = auth.uid())
+    initiator_id = auth.uid()
+    or exists (select 1 from public.entry_participants ep
+               where ep.entry_id = id and ep.user_id = auth.uid())
   );
 drop policy if exists "entries_insert_initiator" on public.entries;
 create policy "entries_insert_initiator" on public.entries

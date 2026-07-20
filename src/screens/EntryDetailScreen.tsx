@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { EntryPhoto } from '@/components/EntryPhoto';
@@ -7,50 +7,73 @@ import { MarianitoBadge } from '@/components/MarianitoBadge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
-import { ME_ID, SEED_FRIENDS } from '@/mocks/seed';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useEntryStore } from '@/stores/useEntryStore';
 import { useFriendStore } from '@/stores/useFriendStore';
+import { Friend } from '@/types/models';
 import { theme } from '@/theme';
 import { entryDateLabel } from '@/utils/dates';
 import { pickPhoto } from '@/utils/pickPhoto';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /** 07 — Co-authored Entry (C3, C4, D5, E2 badge). */
 export function EntryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const myId = user?.id ?? '';
   const entry = useEntryStore((s) => s.entries.find((e) => e.id === id));
+  const entriesLoaded = useEntryStore((s) => s.loaded);
+  const refreshEntries = useEntryStore((s) => s.refresh);
   const addAppend = useEntryStore((s) => s.addAppend);
-  const friends = useFriendStore((s) => s.friends);
-  const blocked = useFriendStore((s) => s.blocked);
+  const loadProfiles = useFriendStore((s) => s.profiles);
 
+  // Deep links land here before the journal has fetched — load on demand.
+  useEffect(() => {
+    if (!entriesLoaded) refreshEntries();
+  }, [entriesLoaded, refreshEntries]);
+
+  const goBack = useSafeBack('/');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [people, setPeople] = useState<Friend[]>([]);
+
+  const personIds = useMemo(() => {
+    if (!entry) return [];
+    return [...new Set([...entry.participantIds, ...entry.appends.map((a) => a.authorId)])];
+  }, [entry]);
+
+  useEffect(() => {
+    if (personIds.length) loadProfiles(personIds).then(setPeople);
+  }, [personIds, loadProfiles]);
 
   const peopleById = useMemo(() => {
     const map = new Map<string, { displayName: string; username: string; avatarUri: string | null }>();
-    for (const f of [...SEED_FRIENDS, ...friends, ...blocked]) map.set(f.id, f);
-    if (user) map.set(ME_ID, user);
+    for (const f of people) map.set(f.id, f);
+    if (user) map.set(user.id, user);
     return map;
-  }, [friends, blocked, user]);
+  }, [people, user]);
 
   if (!entry) {
     return (
       <ScreenContainer>
         <View style={styles.missing}>
-          <Text style={styles.missingText}>This moment is gone.</Text>
-          <PrimaryButton title="Back to journal" onPress={() => router.back()} />
+          {entriesLoaded ? (
+            <>
+              <Text style={styles.missingText}>This moment is gone.</Text>
+              <PrimaryButton title="Back to journal" onPress={goBack} />
+            </>
+          ) : null}
         </View>
       </ScreenContainer>
     );
   }
 
   const nameOf = (pid: string) =>
-    pid === ME_ID ? 'You' : (peopleById.get(pid)?.displayName ?? 'Someone');
+    pid === myId ? 'You' : (peopleById.get(pid)?.displayName ?? 'Someone');
 
-  const isTagged = entry.participantIds.includes(ME_ID) && entry.initiatorId !== ME_ID;
-  const hasAppended = entry.appends.some((a) => a.authorId === ME_ID);
+  const isTagged = entry.participantIds.includes(myId) && entry.initiatorId !== myId;
+  const hasAppended = entry.appends.some((a) => a.authorId === myId);
   const showTaggedCard = isTagged && !hasAppended;
 
   const submitComment = async () => {
@@ -58,7 +81,7 @@ export function EntryDetailScreen() {
     if (!text) return;
     setBusy(true);
     try {
-      await addAppend(entry.id, { authorId: ME_ID, kind: 'comment', text });
+      await addAppend(entry.id, { authorId: myId, kind: 'comment', text });
       setComment('');
     } finally {
       setBusy(false);
@@ -68,14 +91,14 @@ export function EntryDetailScreen() {
   const addPhotoAppend = async () => {
     const uri = await pickPhoto();
     if (uri) {
-      await addAppend(entry.id, { authorId: ME_ID, kind: 'photo', photoUri: uri });
+      await addAppend(entry.id, { authorId: myId, kind: 'photo', photoUri: uri });
     }
   };
 
   return (
     <ScreenContainer keyboard edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>‹ Journal</Text>
         </Pressable>
 

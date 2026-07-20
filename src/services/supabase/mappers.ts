@@ -8,6 +8,8 @@ export interface ProfileRow {
   avatar_url: string | null;
   nearby: boolean;
   created_at: string;
+  is_guest?: boolean;
+  created_by?: string | null;
 }
 
 export function toUser(row: ProfileRow): User {
@@ -30,6 +32,7 @@ export function toFriend(row: ProfileRow, opts: { isFriend: boolean; isBlocked: 
     isNearby: row.nearby,
     isFriend: opts.isFriend,
     isBlocked: opts.isBlocked,
+    isGuest: row.is_guest ?? false,
   };
 }
 

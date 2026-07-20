@@ -6,7 +6,13 @@ import { load, remove, save } from './storage';
 const KEY = 'user';
 
 export class MockAuthService implements AuthService {
-  async signUp(email: string, _password: string): Promise<User> {
+  async requestEmailCode(_email: string): Promise<void> {
+    // Mock: no email is sent — any code verifies.
+  }
+
+  async verifyEmailCode(email: string, _code: string): Promise<User> {
+    const existing = await load<User>(KEY);
+    if (existing && existing.email === email.trim().toLowerCase()) return existing;
     const user: User = {
       id: ME_ID,
       email: email.trim().toLowerCase(),

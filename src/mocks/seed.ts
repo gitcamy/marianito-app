@@ -9,7 +9,8 @@ export const SEED_FRIENDS: Friend[] = [
   { id: 'f3', displayName: 'June Ibarra', username: 'june', avatarUri: null, isNearby: true, isFriend: true, isBlocked: false },
   { id: 'f4', displayName: 'Leire Otxoa', username: 'leire', avatarUri: null, isNearby: false, isFriend: true, isBlocked: false },
   { id: 'f5', displayName: 'Iñigo Zubiri', username: 'inigo', avatarUri: null, isNearby: false, isFriend: true, isBlocked: false },
-  { id: 'f6', displayName: 'Nerea Salaberria', username: 'nerea', avatarUri: null, isNearby: false, isFriend: false, isBlocked: false },
+  // nearby non-friend: demos the "Nearby" section beyond the friend list
+  { id: 'f6', displayName: 'Nerea Salaberria', username: 'nerea', avatarUri: null, isNearby: true, isFriend: false, isBlocked: false },
   { id: 'f7', displayName: 'Oier Mendieta', username: 'oier', avatarUri: null, isNearby: false, isFriend: false, isBlocked: false },
   { id: 'f8', displayName: 'Maialen Urrutia', username: 'maialen', avatarUri: null, isNearby: false, isFriend: false, isBlocked: false },
 ];
