@@ -48,7 +48,7 @@ export interface Entry {
 }
 
 export interface Settings {
-  discoverablePresence: boolean; // G1 — appear in "nearby" surfaces
+  discoverablePresence: boolean; // G1 — appear in others' "nearby" surfaces (not your own view)
   locationConsent: boolean; // G2
   notificationsEnabled: boolean; // G3 (UI only this iteration)
   /** Appear in other users' people lists (RLS-enforced). Off → friends/table-mates only. */

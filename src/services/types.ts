@@ -47,9 +47,24 @@ export interface EntryService {
     participantIds: string[]; // excluding self
     startedAt: string;
   }): Promise<Entry>;
-  list(): Promise<Entry[]>; // entries where current user ∈ participantIds (D1)
+  list(): Promise<Entry[]>; // entries where current user ∈ participantIds (D1), not soft-deleted
   get(id: string): Promise<Entry | null>;
+  /** Edit caption / location / photo (any current participant). */
+  update(
+    entryId: string,
+    patch: Partial<Pick<Entry, 'caption' | 'location' | 'photoUri'>>,
+  ): Promise<Entry>;
+  /** Soft-delete for the current user only — co-authors keep the post. */
+  hide(entryId: string): Promise<void>;
+  /** Remove yourself from the table (others no longer see you as tagged). */
+  leave(entryId: string): Promise<void>;
   addAppend(entryId: string, append: DistributiveOmit<EntryAppend, 'id' | 'createdAt'>): Promise<Entry>;
+  updateAppend(
+    entryId: string,
+    appendId: string,
+    patch: { text?: string; photoUri?: string },
+  ): Promise<Entry>;
+  deleteAppend(entryId: string, appendId: string): Promise<Entry>;
 }
 
 export interface SettingsService {

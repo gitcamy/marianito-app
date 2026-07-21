@@ -54,12 +54,17 @@ export class SupabaseEntryService implements EntryService {
 
   async list(): Promise<Entry[]> {
     const userId = await requireUserId();
-    const { data: mine, error: mErr } = await supabase
-      .from('entry_participants')
-      .select('entry_id')
-      .eq('user_id', userId);
+    const [{ data: mine, error: mErr }, { data: hidden, error: hErr }] = await Promise.all([
+      supabase.from('entry_participants').select('entry_id').eq('user_id', userId),
+      supabase.from('entry_hides').select('entry_id').eq('user_id', userId),
+    ]);
     if (mErr) throw new Error(mErr.message);
-    const ids = (mine ?? []).map((r) => r.entry_id as string);
+    if (hErr) throw new Error(hErr.message);
+
+    const hiddenSet = new Set((hidden ?? []).map((r) => r.entry_id as string));
+    const ids = (mine ?? [])
+      .map((r) => r.entry_id as string)
+      .filter((id) => !hiddenSet.has(id));
     if (ids.length === 0) return [];
 
     const { data, error } = await supabase
@@ -72,13 +77,69 @@ export class SupabaseEntryService implements EntryService {
   }
 
   async get(id: string): Promise<Entry | null> {
+    const userId = await requireUserId();
+    const { data: hide } = await supabase
+      .from('entry_hides')
+      .select('entry_id')
+      .eq('entry_id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (hide) return null;
+
     const { data, error } = await supabase
       .from('entries')
       .select(ENTRY_SELECT)
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toEntry(data as EntryRow) : null;
+    if (!data) return null;
+    const entry = toEntry(data as EntryRow);
+    // Left the table → treat as gone for this user (initiator RLS may still allow select).
+    if (!entry.participantIds.includes(userId)) return null;
+    return entry;
+  }
+
+  async update(
+    entryId: string,
+    patch: Partial<Pick<Entry, 'caption' | 'location' | 'photoUri'>>,
+  ): Promise<Entry> {
+    const userId = await requireUserId();
+    const row: Record<string, unknown> = {};
+    if (patch.caption !== undefined) row.caption = patch.caption;
+    if (patch.location !== undefined) row.location = patch.location;
+    if (patch.photoUri !== undefined) {
+      row.photo_url = /^https?:/.test(patch.photoUri)
+        ? patch.photoUri
+        : await uploadPhoto(patch.photoUri, userId);
+    }
+    if (Object.keys(row).length === 0) {
+      const existing = await this.get(entryId);
+      if (!existing) throw new Error('Entry not found');
+      return existing;
+    }
+    const { error } = await supabase.from('entries').update(row).eq('id', entryId);
+    if (error) throw new Error(error.message);
+    const full = await this.get(entryId);
+    if (!full) throw new Error('Entry not found');
+    return full;
+  }
+
+  async hide(entryId: string): Promise<void> {
+    const userId = await requireUserId();
+    const { error } = await supabase
+      .from('entry_hides')
+      .upsert({ entry_id: entryId, user_id: userId }, { onConflict: 'entry_id,user_id' });
+    if (error) throw new Error(error.message);
+  }
+
+  async leave(entryId: string): Promise<void> {
+    const userId = await requireUserId();
+    const { error } = await supabase
+      .from('entry_participants')
+      .delete()
+      .eq('entry_id', entryId)
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
   }
 
   async addAppend(
@@ -97,6 +158,45 @@ export class SupabaseEntryService implements EntryService {
       text: append.kind === 'comment' ? append.text : null,
       photo_url: photoUrl,
     });
+    if (error) throw new Error(error.message);
+    const full = await this.get(entryId);
+    if (!full) throw new Error('Entry not found');
+    return full;
+  }
+
+  async updateAppend(
+    entryId: string,
+    appendId: string,
+    patch: { text?: string; photoUri?: string },
+  ): Promise<Entry> {
+    const userId = await requireUserId();
+    const row: Record<string, unknown> = {};
+    if (patch.text !== undefined) row.text = patch.text;
+    if (patch.photoUri !== undefined) {
+      row.photo_url = /^https?:/.test(patch.photoUri)
+        ? patch.photoUri
+        : await uploadPhoto(patch.photoUri, userId);
+    }
+    const { error } = await supabase
+      .from('entry_appends')
+      .update(row)
+      .eq('id', appendId)
+      .eq('entry_id', entryId)
+      .eq('author_id', userId);
+    if (error) throw new Error(error.message);
+    const full = await this.get(entryId);
+    if (!full) throw new Error('Entry not found');
+    return full;
+  }
+
+  async deleteAppend(entryId: string, appendId: string): Promise<Entry> {
+    const userId = await requireUserId();
+    const { error } = await supabase
+      .from('entry_appends')
+      .delete()
+      .eq('id', appendId)
+      .eq('entry_id', entryId)
+      .eq('author_id', userId);
     if (error) throw new Error(error.message);
     const full = await this.get(entryId);
     if (!full) throw new Error('Entry not found');

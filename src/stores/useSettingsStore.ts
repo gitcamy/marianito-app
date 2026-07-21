@@ -23,8 +23,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   update: async (patch) => {
     const next = await settingsService.update(patch);
     set({ settings: next });
-    // Revoking either privacy toggle wipes the stored location immediately.
-    if (patch.discoverablePresence === false || patch.locationConsent === false) {
+    // Revoking location consent wipes the stored location immediately.
+    // (Discoverable presence off does NOT clear it — the server just stops
+    // showing you to others; your own nearby view keeps working.)
+    if (patch.locationConsent === false) {
       friendService.clearPresence().catch(() => {});
     }
   },

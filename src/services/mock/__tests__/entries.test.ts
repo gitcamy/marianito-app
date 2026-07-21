@@ -68,4 +68,56 @@ describe('MockEntryService', () => {
       entries.addAppend('nope', { authorId: ME_ID, kind: 'comment', text: 'x' }),
     ).rejects.toThrow();
   });
+
+  it('hide removes the entry from my journal only (soft delete)', async () => {
+    const entry = await entries.create(input);
+    await entries.hide(entry.id);
+    const listed = await entries.list();
+    expect(listed.some((e) => e.id === entry.id)).toBe(false);
+    expect(await entries.get(entry.id)).toBeNull();
+    // Co-authors would still see it — the entry row itself remains with all participants.
+    const allStored = JSON.parse((await AsyncStorage.getItem('marianito:entries'))!) as {
+      id: string;
+      participantIds: string[];
+    }[];
+    const stored = allStored.find((e) => e.id === entry.id);
+    expect(stored?.participantIds).toEqual([ME_ID, 'f1', 'f2']);
+  });
+
+  it('leave removes me from participants and the journal', async () => {
+    const entry = await entries.create(input);
+    await entries.leave(entry.id);
+    expect(await entries.get(entry.id)).toBeNull();
+    expect((await entries.list()).some((e) => e.id === entry.id)).toBe(false);
+    const allStored = JSON.parse((await AsyncStorage.getItem('marianito:entries'))!) as {
+      id: string;
+      participantIds: string[];
+    }[];
+    const stored = allStored.find((e) => e.id === entry.id);
+    expect(stored?.participantIds).toEqual(['f1', 'f2']);
+  });
+
+  it('update edits caption and location', async () => {
+    const entry = await entries.create(input);
+    const updated = await entries.update(entry.id, {
+      caption: 'Updated caption',
+      location: 'Plaza Nueva',
+    });
+    expect(updated.caption).toBe('Updated caption');
+    expect(updated.location).toBe('Plaza Nueva');
+  });
+
+  it('updateAppend and deleteAppend work for my comments', async () => {
+    const entry = await entries.create(input);
+    const withComment = await entries.addAppend(entry.id, {
+      authorId: ME_ID,
+      kind: 'comment',
+      text: 'First take',
+    });
+    const appendId = withComment.appends[0].id;
+    const edited = await entries.updateAppend(entry.id, appendId, { text: 'Second take' });
+    expect(edited.appends[0]).toMatchObject({ kind: 'comment', text: 'Second take' });
+    const cleared = await entries.deleteAppend(entry.id, appendId);
+    expect(cleared.appends).toHaveLength(0);
+  });
 });

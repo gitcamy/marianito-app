@@ -6,7 +6,6 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
 import { useFriendStore } from '@/stores/useFriendStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useTableStore } from '@/stores/useTableStore';
 import { Friend } from '@/types/models';
 import { theme } from '@/theme';
@@ -30,7 +29,6 @@ export function WhoIsHereScreen() {
   const nearbyPeople = useFriendStore((s) => s.nearbyPeople);
   const listFriends = useFriendStore((s) => s.refresh);
   const friends = useFriendStore((s) => s.friends);
-  const discoverable = useSettingsStore((s) => s.settings.discoverablePresence);
 
   const goBack = useSafeBack('/');
   const [query, setQuery] = useState('');
@@ -77,10 +75,9 @@ export function WhoIsHereScreen() {
     if (trimmedQuery) {
       return results.length ? [{ label: 'Results', data: results }] : [];
     }
-    // Mutual visibility: if my presence is off, I don't get to browse nearby either.
-    const nearbySorted = discoverable
-      ? [...nearby].sort((a, b) => Number(b.isFriend) - Number(a.isFriend))
-      : [];
+    // My discoverable-presence toggle affects only MY visibility to others —
+    // it never hides other (opted-in) people from me.
+    const nearbySorted = [...nearby].sort((a, b) => Number(b.isFriend) - Number(a.isFriend));
     // Friends ALWAYS all show below, alphabetically — nearby friends
     // intentionally appear twice.
     const friendsAlpha = [...friends].sort((a, b) =>
@@ -90,7 +87,7 @@ export function WhoIsHereScreen() {
       ...(nearbySorted.length ? [{ label: 'Nearby', data: nearbySorted }] : []),
       ...(friendsAlpha.length ? [{ label: 'Friends', data: friendsAlpha }] : []),
     ];
-  }, [trimmedQuery, results, nearby, friends, discoverable]);
+  }, [trimmedQuery, results, nearby, friends]);
 
   // H1: block directly from the people list.
   const confirmBlock = (person: Friend) =>

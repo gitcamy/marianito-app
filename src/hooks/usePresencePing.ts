@@ -8,18 +8,18 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 const MIN_PING_INTERVAL_MS = 2 * 60 * 1000; // don't hammer GPS or the backend
 
 /**
- * Foreground-only presence: while signed in AND both privacy toggles are on,
- * ping the user's location on app open/foreground so friends can see them as
- * nearby. No background tracking. Failures (permission denied, no GPS) are
- * silent — nearby simply won't light up.
+ * Foreground-only presence: while signed in with Location consent on, ping the
+ * user's location on app open/foreground. "Discoverable presence" does NOT
+ * gate pinging — it only controls whether OTHERS see you (enforced server-side
+ * per target), so turning it off never blinds you to nearby people. No
+ * background tracking; failures (permission denied, no GPS) are silent.
  */
 export function usePresencePing() {
   const signedIn = useAuthStore((s) => s.status === 'signedIn');
-  const discoverable = useSettingsStore((s) => s.settings.discoverablePresence);
   const locationConsent = useSettingsStore((s) => s.settings.locationConsent);
   const lastPingAt = useRef(0);
 
-  const enabled = signedIn && discoverable && locationConsent;
+  const enabled = signedIn && locationConsent;
 
   useEffect(() => {
     if (!enabled) return;

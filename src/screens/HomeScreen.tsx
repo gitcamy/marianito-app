@@ -9,7 +9,6 @@ import { JournalView } from '@/screens/JournalView';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useFriendStore } from '@/stores/useFriendStore';
 import { useHomeStore } from '@/stores/useHomeStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useTableStore } from '@/stores/useTableStore';
 import { theme } from '@/theme';
 
@@ -21,7 +20,6 @@ export function HomeScreen() {
   const setView = useHomeStore((s) => s.setView);
   const friends = useFriendStore((s) => s.friends);
   const refreshFriends = useFriendStore((s) => s.refresh);
-  const discoverable = useSettingsStore((s) => s.settings.discoverablePresence);
   const openTable = useTableStore((s) => s.open);
 
   useEffect(() => {
@@ -48,7 +46,8 @@ export function HomeScreen() {
       }
     : undefined;
 
-  const nearby = discoverable ? friends.filter((f) => f.isNearby) : [];
+  // My presence toggle only affects my visibility to others, never my own view.
+  const nearby = friends.filter((f) => f.isNearby);
 
   return (
     <ScreenContainer>

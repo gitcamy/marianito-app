@@ -59,6 +59,14 @@ create table if not exists public.entry_appends (
   created_at timestamptz not null default now()
 );
 
+-- Per-user soft delete: hides an entry from YOUR journal only (co-authors keep it).
+create table if not exists public.entry_hides (
+  entry_id uuid not null references public.entries(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (entry_id, user_id)
+);
+
 create table if not exists public.settings (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   discoverable_presence boolean not null default true,
@@ -137,6 +145,7 @@ alter table public.blocks enable row level security;
 alter table public.entries enable row level security;
 alter table public.entry_participants enable row level security;
 alter table public.entry_appends enable row level security;
+alter table public.entry_hides enable row level security;
 alter table public.settings enable row level security;
 alter table public.reports enable row level security;
 
@@ -207,9 +216,20 @@ create policy "entries_select_participant" on public.entries
 drop policy if exists "entries_insert_initiator" on public.entries;
 create policy "entries_insert_initiator" on public.entries
   for insert to authenticated with check (initiator_id = auth.uid());
+drop policy if exists "entries_update_participant" on public.entries;
+create policy "entries_update_participant" on public.entries
+  for update to authenticated using (
+    exists (select 1 from public.entry_participants ep
+            where ep.entry_id = id and ep.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.entry_participants ep
+            where ep.entry_id = id and ep.user_id = auth.uid())
+  );
 
 -- entry_participants: readable by any signed-in user (needed to resolve
--- entry visibility without recursion); only the entry's initiator adds rows
+-- entry visibility without recursion); only the entry's initiator adds rows;
+-- anyone can remove themselves from a table.
 drop policy if exists "participants_select" on public.entry_participants;
 create policy "participants_select" on public.entry_participants
   for select to authenticated using (true);
@@ -219,8 +239,11 @@ create policy "participants_insert_initiator" on public.entry_participants
     exists (select 1 from public.entries e
             where e.id = entry_id and e.initiator_id = auth.uid())
   );
+drop policy if exists "participants_delete_own" on public.entry_participants;
+create policy "participants_delete_own" on public.entry_participants
+  for delete to authenticated using (user_id = auth.uid());
 
--- appends: participants read; participants write their own
+-- appends: participants read; authors write/update/delete their own
 drop policy if exists "appends_select_participant" on public.entry_appends;
 create policy "appends_select_participant" on public.entry_appends
   for select to authenticated using (
@@ -233,6 +256,28 @@ create policy "appends_insert_participant" on public.entry_appends
     author_id = auth.uid()
     and exists (select 1 from public.entry_participants ep
                 where ep.entry_id = entry_appends.entry_id and ep.user_id = auth.uid())
+  );
+drop policy if exists "appends_update_own" on public.entry_appends;
+create policy "appends_update_own" on public.entry_appends
+  for update to authenticated using (author_id = auth.uid())
+  with check (author_id = auth.uid());
+drop policy if exists "appends_delete_own" on public.entry_appends;
+create policy "appends_delete_own" on public.entry_appends
+  for delete to authenticated using (author_id = auth.uid());
+
+-- entry_hides: per-user soft delete (your journal only)
+drop policy if exists "hides_all_own" on public.entry_hides;
+create policy "hides_all_own" on public.entry_hides
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and (
+      exists (select 1 from public.entry_participants ep
+              where ep.entry_id = entry_hides.entry_id and ep.user_id = auth.uid())
+      or exists (select 1 from public.entries e
+                 where e.id = entry_hides.entry_id and e.initiator_id = auth.uid())
+    )
   );
 
 -- settings: yours only

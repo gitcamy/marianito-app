@@ -29,8 +29,8 @@ Expo SDK 57 + expo-router (routes in `src/app/`, thin files only) + zustand + Ty
 - **Auth is passwordless**: email OTP ("magic code") via `signInWithOtp`/`verifyOtp` — one
   flow for sign-up and sign-in. The Supabase "Magic Link" email template must contain
   `{{ .Token }}` so the email carries the 6-digit code. Backend schema + RLS live in
-  `supabase/schema.sql`; incremental patches (e.g. `supabase/guests.sql`) are separate files —
-  run each once in the SQL editor.
+  `supabase/schema.sql`; incremental patches (e.g. `supabase/guests.sql`,
+  `supabase/entry-edits.sql`) are separate files — run each once in the SQL editor.
 - **Guest friends**: profiles with `is_guest = true` and `created_by = <owner>` — no auth
   account, taggable at tables, visible in search only to their creator. Created from the
   Who's Here screen ("Add ‘name’ as a guest").
@@ -39,11 +39,13 @@ Expo SDK 57 + expo-router (routes in `src/app/`, thin files only) + zustand + Ty
   policy via the security-definer `is_discoverable_to_all()` — off means only the user
   themself, their friends, table-mates, and (for guests) their creator can see the profile.
 - **Geo-presence** (`supabase/presence.sql`): foreground-only location pings
-  (`usePresencePing`, gated on BOTH privacy toggles) into a `presence` table readable only
-  by its owner. Nearby-ness comes exclusively from the `nearby_friend_ids()` RPC — friends
-  within ~500 m with fresh (<45 min) pings and both toggles on; it returns ids, NEVER
-  coordinates. Client merges those ids into `Friend.isNearby` (static `profiles.nearby`
-  stays as a demo override). Revoking either toggle deletes the presence row.
+  (`usePresencePing`, gated on location consent) into a `presence` table readable only
+  by its owner. Nearby-ness comes exclusively from the `nearby_user_ids()` RPC — people
+  within ~500 m with fresh (<45 min) pings who have discoverable presence + location
+  consent; it returns ids, NEVER coordinates. "Discoverable presence" only hides *you*
+  from others (checked per target server-side); it does not blind your own nearby view.
+  Client merges those ids into `Friend.isNearby` (static `profiles.nearby` stays as a
+  demo override). Revoking location consent deletes the presence row.
 - `EXPO_PUBLIC_USE_MOCKS=1 npx expo start` forces the offline mock backend even when `.env`
   has Supabase credentials (demo mode / UI testing).
 - The mock current user always has id `'me'` (`ME_ID`) so seed data can reference them.
@@ -59,8 +61,11 @@ Expo SDK 57 + expo-router (routes in `src/app/`, thin files only) + zustand + Ty
   "Marianito Hour" (E2) iff that hour is 13 device-local (`src/utils/marianitoHour.ts`),
   computed once at creation and stored.
 - Co-authors are auto-added to the friend list on post (`ensureFriends`).
-- The journal lists every entry where the user is a participant (D1); "nearby" is a
-  simulated boolean on mock friends, gated by the Discoverable presence setting (G1).
+- The journal lists every entry where the user is a participant and hasn't
+  soft-deleted it (D1); "Delete" hides the post for you only — co-authors keep it.
+  "Leave table" removes you from participants so others no longer see you tagged.
+- "nearby" is a simulated boolean on mock friends, gated by the Discoverable
+  presence setting (G1).
 - Sign-out clears only the session key; journal/friends/settings persist.
 
 ## Gotchas
